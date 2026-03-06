@@ -1,0 +1,2 @@
+date,cpi_inflation_yoy,unemployment_rate,bank_rate,cpi_inflation_yoy_lag1,cpi_inflation_yoy_lag3,unemployment_rate_lag1,unemployment_rate_lag3,bank_rate_lag1,bank_rate_lag3,ftse_return_lag1,ftse_return_lag3,ftse_return_roll3_mean,ftse_return_roll3_std
+2025-10-31,3.6,5.1,4.0,3.8,3.8,5.1,4.8,4.0,4.25,0.0177528315614869,0.0424380555515921,0.020986410725453746,0.016869750675126832
