@@ -3,4 +3,8 @@ pandas
 numpy
 scikit-learn
 joblib
+
 matplotlib
+requests
+yfinance
+python-dateutil
