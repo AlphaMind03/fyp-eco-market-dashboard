@@ -213,9 +213,7 @@ try:
     X_live = build_features_live(cpi, unemp, bank, ftse, gbpusd_ret=gbp)
     x_base = X_live.loc[[X_live.index.max()]].copy()
     live_status = f"Live data OK. Latest usable month: {X_live.index.max().date()}"
-try:
-    # live fetch logic...
-    live_status = f"Live data OK. Latest usable month: {X_live.index.max().date()}"
+
 except Exception as e:
     x_base = pd.read_csv(BASE_ROW_PATH, index_col=0)
     live_status = f"Live data failed; using saved baseline file. Reason: {type(e).__name__}: {e}"
@@ -291,4 +289,5 @@ with tabs[1]:
                    "Scenario impacts (macro shocks)")
 
 # ===== END: app.py =====
+
 
