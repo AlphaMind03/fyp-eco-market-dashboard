@@ -148,7 +148,6 @@ def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     if df.empty:
         raise RuntimeError("yfinance returned no FTSE data.")
 
-    # yfinance can sometimes return MultiIndex columns
     if isinstance(df.columns, pd.MultiIndex):
         if ("Close", "^FTSE") in df.columns:
             close_series = df[("Close", "^FTSE")]
@@ -212,7 +211,7 @@ st.sidebar.markdown(
 # Header
 # -----------------------------
 st.title("FTSE 100 Macro Intelligence Dashboard")
-st.caption("AI-driven market forecasting and scenario analysis for academic decision support.")
+st.caption("AI-driven macro-financial forecasting and scenario-based analysis for academic research.")
 
 tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 
@@ -293,8 +292,18 @@ with tabs[0]:
     )
     st.write(change_message(change))
 
-    # Market sentiment signal
-    st.subheader("Market sentiment signal")
+    # Model summary
+    st.subheader("Model summary")
+    st.write("""
+- Model: Tuned Ridge Regression  
+- Target: Next-month FTSE 100 return  
+- Features: CPI inflation, unemployment rate, Bank Rate, and lagged macro-financial variables  
+- Validation: Time-series-aware train/test split  
+- Purpose: Scenario-based forecasting for academic decision support  
+""")
+
+    # Model-based outlook
+    st.subheader("Model-based market outlook")
     if scn_pred > 0.01:
         st.success("Bullish outlook detected")
     elif scn_pred > 0:
@@ -328,6 +337,15 @@ with tabs[0]:
 
     for point in scenario_points:
         st.write(f"- {point}")
+
+    # Model limitations
+    st.subheader("Model limitations")
+    st.write("""
+- Macroeconomic indicators are slower-moving and may not capture sudden market shocks  
+- Model performance depends on feature selection and historical relationships  
+- External factors such as geopolitical shocks and firm-specific events are not explicitly included  
+- Forecasts are probabilistic estimates and should not be interpreted as guaranteed outcomes  
+""")
 
     # Latest snapshot
     st.subheader("Latest market and macro snapshot")
@@ -396,6 +414,22 @@ with tabs[0]:
 # ============================================================
 with tabs[1]:
     st.subheader("Model evidence and dissertation plots")
+
+    perf_df = pd.DataFrame({
+        "Model": [
+            "Ridge (tuned, TSCV)",
+            "Ridge Regression",
+            "Gradient Boosting",
+            "Baseline (return_t)"
+        ],
+        "MAE": [0.028996, 0.029812, 0.039645, 0.041435],
+        "RMSE": [0.037194, 0.037969, 0.050094, 0.052102],
+        "R²": [-0.035601, -0.079228, -0.878534, -1.032138]
+    })
+
+    st.subheader("Model performance summary")
+    st.dataframe(perf_df, use_container_width=True, hide_index=True)
+
     colA, colB = st.columns(2)
 
     with colA:
