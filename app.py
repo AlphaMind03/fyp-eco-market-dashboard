@@ -221,10 +221,34 @@ with tabs[0]:
     # Key metrics
     # -----------------------------
     st.subheader("Key metrics")
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Baseline predicted return", f"{base_pred:.6f}")
-    k2.metric("Scenario predicted return", f"{scn_pred:.6f}")
-    k3.metric("Prediction change", f"{change:.6f}")
+    def format_return(val):
+    return f"{val:.4%}"
+
+def delta_color(val):
+    if val > 0:
+        return "normal"
+    elif val < 0:
+        return "inverse"
+    return "off"
+
+k1.metric(
+    "Baseline predicted return",
+    format_return(base_pred)
+)
+
+k2.metric(
+    "Scenario predicted return",
+    format_return(scn_pred),
+    delta=format_return(scn_pred - base_pred),
+    delta_color=delta_color(scn_pred - base_pred)
+)
+
+k3.metric(
+    "Prediction change",
+    format_return(change),
+    delta=format_return(change),
+    delta_color=delta_color(change)
+)
     k4.metric(
         "Latest market month",
         str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
