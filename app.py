@@ -104,6 +104,14 @@ def make_line_chart(df: pd.DataFrame, title: str, y_col: str):
     )
     return fig
 
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0 Safari/537.36"
+    )
+}
+
 # ============================================================
 # LIVE DATA FETCH
 # ============================================================
@@ -123,9 +131,6 @@ def fetch_ftse_prices_and_returns(start="1990-01-01") -> pd.DataFrame:
 
 @st.cache_data(ttl=60 * 60)
 def fetch_gbpusd_monthly_return(start="1990-01-01") -> pd.DataFrame:
-    """
-    GBP/USD monthly % change (return). Only used if your model expects gbpusd_return features.
-    """
     df = yf.download("GBPUSD=X", start=start, progress=False, auto_adjust=True)
     if df.empty:
         raise RuntimeError("yfinance returned no GBP/USD data.")
@@ -136,63 +141,75 @@ def fetch_gbpusd_monthly_return(start="1990-01-01") -> pd.DataFrame:
 @st.cache_data(ttl=60 * 60)
 def fetch_ons_timeseries_csv(uri_path: str, value_name: str) -> pd.DataFrame:
     """
-    ONS generator CSV downloader.
-    Example uri_path:
-    /economy/inflationandpriceindices/timeseries/d7g7/mm23
+    Try ONS generator CSV first, then fall back to ONS JSON API.
     """
     encoded_uri = requests.utils.quote(uri_path, safe="")
     url = f"https://www.ons.gov.uk/generator?format=csv&uri={encoded_uri}"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
 
-    raw = pd.read_csv(StringIO(r.text))
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        raw = pd.read_csv(StringIO(r.text))
 
-    # Keep first two columns only
-    if raw.shape[1] < 2:
-        raise RuntimeError(f"Unexpected ONS CSV format for {uri_path}")
+        if raw.shape[1] >= 2:
+            tmp = raw.iloc[:, :2].copy()
+            tmp.columns = ["date_raw", "value"]
+            tmp["date"] = pd.to_datetime(tmp["date_raw"], errors="coerce")
+            tmp["value"] = pd.to_numeric(tmp["value"], errors="coerce")
+            tmp = tmp.dropna(subset=["date", "value"]).set_index("date").sort_index()
+            if not tmp.empty:
+                return tmp.rename(columns={"value": value_name})[[value_name]]
+    except Exception:
+        pass
 
-    tmp = raw.iloc[:, :2].copy()
-    tmp.columns = ["date_raw", "value"]
-
-    tmp["date"] = pd.to_datetime(tmp["date_raw"], errors="coerce")
-    tmp["value"] = pd.to_numeric(tmp["value"], errors="coerce")
-
-    tmp = tmp.dropna(subset=["date", "value"]).set_index("date").sort_index()
-    return tmp.rename(columns={"value": value_name})[[value_name]]
+    return fetch_ons_timeseries_json(uri_path, value_name)
 
 @st.cache_data(ttl=60 * 60)
-def fetch_boe_bank_rate_iumabedr():
+def fetch_ons_timeseries_json(uri_path: str, value_name: str) -> pd.DataFrame:
+    parts = uri_path.strip("/").split("/")
+    series_id = parts[-2]
+    dataset_id = parts[-1]
+    url = f"https://api.ons.gov.uk/timeseries/{series_id}/dataset/{dataset_id}/data"
+
+    r = requests.get(url, headers=HEADERS, timeout=30)
+    r.raise_for_status()
+    j = r.json()
+
+    candidates = j.get("months") or j.get("quarters") or j.get("years") or []
+    rows = [(item.get("date"), item.get("value")) for item in candidates]
+
+    df = pd.DataFrame(rows, columns=["date_raw", "value"])
+    df["date"] = pd.to_datetime(df["date_raw"], errors="coerce")
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    df = df.dropna(subset=["date", "value"]).set_index("date").sort_index()
+    if df.empty:
+        raise RuntimeError(f"ONS JSON returned no usable data for {uri_path}")
+    return df.rename(columns={"value": value_name})[[value_name]]
+
+@st.cache_data(ttl=60 * 60)
+def fetch_boe_bank_rate_iumabedr() -> pd.DataFrame:
     """
-    Fetch Bank Rate from the public BoE Bank Rate history page
-    instead of the blocked CSV endpoint.
+    Scrape the public Bank Rate history page instead of the blocked CSV endpoint.
+    The page contains 'Date Changed' and 'Rate' rows publicly.
     """
     url = "https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    r = requests.get(url, headers=headers, timeout=30)
+    r = requests.get(url, headers=HEADERS, timeout=30)
     r.raise_for_status()
 
-    # Read HTML tables from the page
     tables = pd.read_html(StringIO(r.text))
-
-    # Find the table that contains Bank Rate history
     rate_table = None
+
     for t in tables:
         cols = [str(c).strip().lower() for c in t.columns]
-        if len(cols) >= 2 and ("date changed" in cols[0] or "date" in cols[0]) and "rate" in cols[-1]:
+        joined = " | ".join(cols)
+        if "date changed" in joined and "rate" in joined:
             rate_table = t.copy()
             break
 
     if rate_table is None:
         raise RuntimeError("Could not find Bank Rate table on BoE page.")
 
-    # Normalise columns
     rate_table.columns = [str(c).strip().lower() for c in rate_table.columns]
-
-    # Try to identify date/rate columns
     date_col = rate_table.columns[0]
     rate_col = rate_table.columns[-1]
 
@@ -201,10 +218,11 @@ def fetch_boe_bank_rate_iumabedr():
 
     tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce", dayfirst=True)
     tmp["bank_rate"] = pd.to_numeric(tmp["bank_rate"], errors="coerce")
-
     tmp = tmp.dropna(subset=["date", "bank_rate"]).set_index("date").sort_index()
 
-    # Convert rate-change history into monthly month-end series
+    if tmp.empty:
+        raise RuntimeError("BoE Bank Rate table parsed but no usable rows were found.")
+
     daily_index = pd.date_range(tmp.index.min(), pd.Timestamp.today(), freq="D")
     tmp = tmp.reindex(daily_index).ffill()
     tmp.index.name = "date"
@@ -221,7 +239,7 @@ def build_features_live(
 ):
     cpi_me = cpi.resample("M").last()
     unemp_me = unemp.resample("M").last()
-    bank_me = bank.resample("M").mean()
+    bank_me = bank.resample("M").last()
     ftse_me = ftse_df.resample("M").last()
 
     data = (
@@ -266,7 +284,6 @@ x_base = None
 live_status = None
 latest_month = None
 latest_data = {}
-
 ftse_live_df = None
 macro_chart_df = None
 
@@ -289,10 +306,9 @@ try:
     x_base = X_live.loc[[X_live.index.max()]].copy()
 
     latest_month = X_live.index.max()
-
     latest_data["cpi_inflation_yoy"] = float(cpi.resample("M").last().iloc[-1, 0])
     latest_data["unemployment_rate"] = float(unemp.resample("M").last().iloc[-1, 0])
-    latest_data["bank_rate"] = float(bank.resample("M").mean().iloc[-1, 0])
+    latest_data["bank_rate"] = float(bank.resample("M").last().iloc[-1, 0])
     latest_data["ftse_return"] = float(ftse_live_df["ftse_return"].iloc[-1])
 
     if gbp_needed and gbp is not None:
@@ -302,7 +318,7 @@ try:
         [
             cpi.resample("M").last().tail(24),
             unemp.resample("M").last().tail(24),
-            bank.resample("M").mean().tail(24)
+            bank.resample("M").last().tail(24)
         ],
         axis=1
     )
