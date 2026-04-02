@@ -161,32 +161,55 @@ def fetch_ons_timeseries_csv(uri_path: str, value_name: str) -> pd.DataFrame:
     return tmp.rename(columns={"value": value_name})[[value_name]]
 
 @st.cache_data(ttl=60 * 60)
-def fetch_boe_bank_rate_iumabedr() -> pd.DataFrame:
+def fetch_boe_bank_rate_iumabedr():
     """
-    Bank of England IUMABEDR monthly average Bank Rate.
+    Fetch Bank Rate from the public BoE Bank Rate history page
+    instead of the blocked CSV endpoint.
     """
-    url = (
-        "https://www.bankofengland.co.uk/boeapps/database/Rates.asp?"
-        "Travel=NIxIRx&into=GBP&Rateview=D&RateType=Plain&Rate=IUMABEDR&"
-        "From=01/Jan/1990&To=Now&CSV=true"
-    )
-    r = requests.get(url, timeout=30)
+    url = "https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    r = requests.get(url, headers=headers, timeout=30)
     r.raise_for_status()
-    df = pd.read_csv(StringIO(r.text))
 
-    if df.shape[1] < 2:
-        raise RuntimeError("Unexpected BoE CSV format for IUMABEDR.")
+    # Read HTML tables from the page
+    tables = pd.read_html(StringIO(r.text))
 
-    date_col = df.columns[0]
-    val_col = df.columns[-1]
+    # Find the table that contains Bank Rate history
+    rate_table = None
+    for t in tables:
+        cols = [str(c).strip().lower() for c in t.columns]
+        if len(cols) >= 2 and ("date changed" in cols[0] or "date" in cols[0]) and "rate" in cols[-1]:
+            rate_table = t.copy()
+            break
 
-    tmp = df[[date_col, val_col]].copy()
+    if rate_table is None:
+        raise RuntimeError("Could not find Bank Rate table on BoE page.")
+
+    # Normalise columns
+    rate_table.columns = [str(c).strip().lower() for c in rate_table.columns]
+
+    # Try to identify date/rate columns
+    date_col = rate_table.columns[0]
+    rate_col = rate_table.columns[-1]
+
+    tmp = rate_table[[date_col, rate_col]].copy()
     tmp.columns = ["date", "bank_rate"]
-    tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce")
+
+    tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce", dayfirst=True)
     tmp["bank_rate"] = pd.to_numeric(tmp["bank_rate"], errors="coerce")
+
     tmp = tmp.dropna(subset=["date", "bank_rate"]).set_index("date").sort_index()
 
-    bank_me = tmp["bank_rate"].resample("M").mean().to_frame("bank_rate")
+    # Convert rate-change history into monthly month-end series
+    daily_index = pd.date_range(tmp.index.min(), pd.Timestamp.today(), freq="D")
+    tmp = tmp.reindex(daily_index).ffill()
+    tmp.index.name = "date"
+
+    bank_me = tmp["bank_rate"].resample("M").last().to_frame("bank_rate")
     return bank_me
 
 def build_features_live(
