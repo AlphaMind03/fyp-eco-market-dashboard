@@ -189,6 +189,9 @@ tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 with tabs[0]:
     st.markdown('<div class="section-title">Model Forecast Overview</div>', unsafe_allow_html=True)
 
+    # -----------------------------
+    # Scenario controls
+    # -----------------------------
     st.subheader("Scenario shocks")
     s1, s2, s3 = st.columns(3)
     with s1:
@@ -198,6 +201,9 @@ with tabs[0]:
     with s3:
         delta_unemp = st.slider("Δ Unemployment rate (percentage points)", -2.0, 2.0, 0.0, 0.1)
 
+    # -----------------------------
+    # Predictions
+    # -----------------------------
     base_pred = predict(x_base)
 
     x_scn = x_base.copy()
@@ -211,6 +217,9 @@ with tabs[0]:
     scn_pred = predict(x_scn)
     change = scn_pred - base_pred
 
+    # -----------------------------
+    # Key metrics
+    # -----------------------------
     st.subheader("Key metrics")
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Baseline predicted return", f"{base_pred:.6f}")
@@ -221,6 +230,77 @@ with tabs[0]:
         str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
     )
 
+    # -----------------------------
+    # Interpretation helpers
+    # -----------------------------
+    def interpret_return(val: float) -> str:
+        if val >= 0.02:
+            return "strongly positive"
+        elif val >= 0.005:
+            return "moderately positive"
+        elif val > -0.005:
+            return "broadly neutral"
+        elif val > -0.02:
+            return "moderately negative"
+        else:
+            return "strongly negative"
+
+    def change_message(delta: float) -> str:
+        if delta > 0.005:
+            return "The scenario improves the forecast noticeably relative to the baseline."
+        elif delta > 0.0:
+            return "The scenario slightly improves the forecast relative to the baseline."
+        elif delta == 0.0:
+            return "The scenario does not materially change the forecast."
+        elif delta > -0.005:
+            return "The scenario slightly weakens the forecast relative to the baseline."
+        else:
+            return "The scenario weakens the forecast noticeably relative to the baseline."
+
+    baseline_text = interpret_return(base_pred)
+    scenario_text = interpret_return(scn_pred)
+
+    st.subheader("Forecast interpretation")
+    st.write(
+        f"The baseline model output suggests a **{baseline_text}** next-month FTSE 100 outlook, "
+        f"with a predicted return of **{base_pred:.4%}**."
+    )
+    st.write(
+        f"Under the selected macroeconomic scenario, the outlook becomes **{scenario_text}**, "
+        f"with a predicted return of **{scn_pred:.4%}**."
+    )
+    st.write(change_message(change))
+
+    # -----------------------------
+    # Economic interpretation
+    # -----------------------------
+    st.subheader("Scenario insight")
+    scenario_points = []
+
+    if delta_cpi > 0:
+        scenario_points.append("Higher inflation may reduce market sentiment by increasing cost pressure and uncertainty.")
+    elif delta_cpi < 0:
+        scenario_points.append("Lower inflation may support sentiment by easing price pressure and improving stability.")
+
+    if delta_bank > 0:
+        scenario_points.append("Higher Bank Rate may weigh on returns through tighter financial conditions and a higher discount rate.")
+    elif delta_bank < 0:
+        scenario_points.append("Lower Bank Rate may support returns through easier financial conditions.")
+
+    if delta_unemp > 0:
+        scenario_points.append("Higher unemployment may indicate weaker economic activity and softer earnings expectations.")
+    elif delta_unemp < 0:
+        scenario_points.append("Lower unemployment may signal stronger economic activity and improved business conditions.")
+
+    if not scenario_points:
+        scenario_points.append("No additional macro shock has been applied, so the scenario remains equal to the baseline input.")
+
+    for point in scenario_points:
+        st.write(f"- {point}")
+
+    # -----------------------------
+    # Latest snapshot
+    # -----------------------------
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CPI (YoY %)", f"{float(x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
@@ -228,9 +308,33 @@ with tabs[0]:
     c3.metric("Bank Rate (%)", f"{float(x_base.iloc[0].get('bank_rate', 0)):.2f}")
     c4.metric("FTSE monthly return", f"{latest_ftse_return:.4f}")
 
+    # -----------------------------
+    # FTSE recent trend summary
+    # -----------------------------
+    st.subheader("Recent market trend summary")
+    if ftse_live_df is not None and len(ftse_live_df) >= 3:
+        last_3 = ftse_live_df["ftse_return"].tail(3)
+        avg_3 = last_3.mean()
+        if avg_3 > 0.01:
+            trend_msg = "The FTSE 100 has shown a positive short-term trend over the last three monthly observations."
+        elif avg_3 < -0.01:
+            trend_msg = "The FTSE 100 has shown a negative short-term trend over the last three monthly observations."
+        else:
+            trend_msg = "The FTSE 100 has been relatively mixed or stable over the last three monthly observations."
+
+        st.write(trend_msg)
+        st.write(
+            f"Average monthly return over the last 3 observations: **{avg_3:.4%}**."
+        )
+    else:
+        st.write("Recent trend summary is unavailable because live market history could not be loaded.")
+
     with st.expander("Show baseline feature row"):
         st.dataframe(x_base[feature_cols], use_container_width=True)
 
+    # -----------------------------
+    # Recent market and macro data
+    # -----------------------------
     st.subheader("Recent market and macro data")
     ch1, ch2 = st.columns(2)
 
@@ -263,7 +367,6 @@ with tabs[0]:
         "Live market data is refreshed from Yahoo Finance, while macroeconomic inputs are taken from the latest validated saved baseline. "
         "Forecasts are not guaranteed market predictions and are not financial advice."
     )
-
 # ============================================================
 # TAB 2: Results & Evidence
 # ============================================================
