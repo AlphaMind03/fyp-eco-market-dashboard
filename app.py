@@ -110,16 +110,30 @@ def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     We only use this for recent market display, not to rebuild macro features live.
     """
     df = yf.download("^FTSE", start=start, progress=False, auto_adjust=True)
+
     if df.empty:
         raise RuntimeError("yfinance returned no FTSE data.")
 
-    close = df["Close"].resample("M").last()
+    # Sometimes yfinance can return multi-index columns depending on version/setup.
+    if isinstance(df.columns, pd.MultiIndex):
+        if ("Close", "^FTSE") in df.columns:
+            close_series = df[("Close", "^FTSE")]
+        else:
+            close_series = df["Close"].iloc[:, 0]
+    else:
+        close_series = df["Close"]
+
+    # IMPORTANT FIX: use ME instead of M
+    close = close_series.resample("ME").last()
     ret = close.pct_change()
 
     out = pd.DataFrame({
         "ftse_close": close,
         "ftse_return": ret
     }).dropna()
+
+    if out.empty:
+        raise RuntimeError("FTSE resampling returned no usable monthly data.")
 
     return out
 
@@ -138,6 +152,7 @@ if refresh:
 # -----------------------------
 ftse_live_df = None
 live_status = None
+latest_market_month = None
 
 try:
     ftse_live_df = fetch_ftse_prices_and_returns()
@@ -201,13 +216,16 @@ with tabs[0]:
     k1.metric("Baseline predicted return", f"{base_pred:.6f}")
     k2.metric("Scenario predicted return", f"{scn_pred:.6f}")
     k3.metric("Prediction change", f"{change:.6f}")
-    k4.metric("Latest market month", str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline")
+    k4.metric(
+        "Latest market month",
+        str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
+    )
 
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CPI (YoY %)", f"{x_base.iloc[0].get('cpi_inflation_yoy', 0):.2f}")
-    c2.metric("Unemployment (%)", f"{x_base.iloc[0].get('unemployment_rate', 0):.2f}")
-    c3.metric("Bank Rate (%)", f"{x_base.iloc[0].get('bank_rate', 0):.2f}")
+    c1.metric("CPI (YoY %)", f"{float(x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
+    c2.metric("Unemployment (%)", f"{float(x_base.iloc[0].get('unemployment_rate', 0)):.2f}")
+    c3.metric("Bank Rate (%)", f"{float(x_base.iloc[0].get('bank_rate', 0)):.2f}")
     c4.metric("FTSE monthly return", f"{latest_ftse_return:.4f}")
 
     with st.expander("Show baseline feature row"):
@@ -219,15 +237,17 @@ with tabs[0]:
     with ch1:
         if ftse_live_df is not None:
             st.plotly_chart(
-                make_line_chart(ftse_live_df.tail(24), "FTSE 100 Monthly Returns (last 24 months)", "ftse_return"),
+                make_line_chart(
+                    ftse_live_df.tail(24),
+                    "FTSE 100 Monthly Returns (last 24 months)",
+                    "ftse_return"
+                ),
                 use_container_width=True
             )
         else:
             st.warning("Live FTSE chart unavailable; app is using saved baseline.")
 
     with ch2:
-        # Since this is the stable version, macro comes from saved baseline.
-        # We show a compact summary table instead of fragile live macro charts.
         macro_summary = pd.DataFrame({
             "Metric": ["CPI (YoY %)", "Unemployment (%)", "Bank Rate (%)"],
             "Saved baseline value": [
@@ -252,14 +272,20 @@ with tabs[1]:
     colA, colB = st.columns(2)
 
     with colA:
-        show_image("figures/actual_vs_predicted_tuned_ridge.png",
-                   "Actual vs Predicted (Tuned Ridge, test period)")
-        show_image("figures/residuals_tuned_ridge.png",
-                   "Residuals over time (Tuned Ridge)")
+        show_image(
+            "figures/actual_vs_predicted_tuned_ridge.png",
+            "Actual vs Predicted (Tuned Ridge, test period)"
+        )
+        show_image(
+            "figures/residuals_tuned_ridge.png",
+            "Residuals over time (Tuned Ridge)"
+        )
 
     with colB:
-        show_image("figures/scenario_impacts.png",
-                   "Scenario impacts (macro shocks)")
+        show_image(
+            "figures/scenario_impacts.png",
+            "Scenario impacts (macro shocks)"
+        )
 
 # ============================================================
 # TAB 3: About
