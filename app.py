@@ -474,6 +474,11 @@ with tabs[2]:
         - Regularised linear model (Ridge Regression) as the final deployed model
         - Scenario analysis for macro shocks
 
+        **Data Sources**
+        - FTSE 100 prices: Yahoo Finance
+        - Macroeconomic variables: ONS / Bank of England (processed offline)
+        - Model: Trained Ridge Regression (scikit-learn)
+
         **Important note**
         This dashboard is designed for academic research and demonstration purposes.
         It should not be interpreted as financial advice or a guaranteed prediction system.
