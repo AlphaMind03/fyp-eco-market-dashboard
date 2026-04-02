@@ -77,7 +77,7 @@ feature_cols = joblib.load(COLS_PATH)
 def predict(x_row: pd.DataFrame) -> float:
     return float(model.predict(x_row[feature_cols])[0])
 
-def show_image(path, caption):
+def show_image(path: str, caption: str) -> None:
     if os.path.exists(path):
         st.image(path, caption=caption, use_container_width=True)
     else:
@@ -109,7 +109,7 @@ def make_line_chart(df: pd.DataFrame, title: str, y_col: str):
 # ============================================================
 
 @st.cache_data(ttl=60 * 60)
-def fetch_ftse_prices_and_returns(start="1990-01-01"):
+def fetch_ftse_prices_and_returns(start="1990-01-01") -> pd.DataFrame:
     df = yf.download("^FTSE", start=start, progress=False, auto_adjust=True)
     if df.empty:
         raise RuntimeError("yfinance returned no FTSE data.")
@@ -122,7 +122,10 @@ def fetch_ftse_prices_and_returns(start="1990-01-01"):
     return out
 
 @st.cache_data(ttl=60 * 60)
-def fetch_gbpusd_monthly_return(start="1990-01-01"):
+def fetch_gbpusd_monthly_return(start="1990-01-01") -> pd.DataFrame:
+    """
+    GBP/USD monthly % change (return). Only used if your model expects gbpusd_return features.
+    """
     df = yf.download("GBPUSD=X", start=start, progress=False, auto_adjust=True)
     if df.empty:
         raise RuntimeError("yfinance returned no GBP/USD data.")
@@ -132,57 +135,36 @@ def fetch_gbpusd_monthly_return(start="1990-01-01"):
 
 @st.cache_data(ttl=60 * 60)
 def fetch_ons_timeseries_csv(uri_path: str, value_name: str) -> pd.DataFrame:
-    url = f"https://www.ons.gov.uk{uri_path}/download?format=csv"
+    """
+    ONS generator CSV downloader.
+    Example uri_path:
+    /economy/inflationandpriceindices/timeseries/d7g7/mm23
+    """
+    encoded_uri = requests.utils.quote(uri_path, safe="")
+    url = f"https://www.ons.gov.uk/generator?format=csv&uri={encoded_uri}"
     r = requests.get(url, timeout=30)
     r.raise_for_status()
 
     raw = pd.read_csv(StringIO(r.text))
 
-    date_col = None
-    for c in raw.columns:
-        if str(c).strip().lower() in ["date", "time period", "time_period", "timeperiod"]:
-            date_col = c
-            break
+    # Keep first two columns only
+    if raw.shape[1] < 2:
+        raise RuntimeError(f"Unexpected ONS CSV format for {uri_path}")
 
-    value_col = None
-    for c in raw.columns:
-        if str(c).strip().lower() == "value":
-            value_col = c
-            break
+    tmp = raw.iloc[:, :2].copy()
+    tmp.columns = ["date_raw", "value"]
 
-    if date_col is not None and value_col is not None:
-        tmp = raw[[date_col, value_col]].copy()
-        tmp.columns = ["date_raw", "value"]
-        tmp["date"] = pd.to_datetime(tmp["date_raw"], errors="coerce")
-        tmp["value"] = pd.to_numeric(tmp["value"], errors="coerce")
-        tmp = tmp.dropna(subset=["date", "value"]).set_index("date").sort_index()
-        return tmp.rename(columns={"value": value_name})[[value_name]]
+    tmp["date"] = pd.to_datetime(tmp["date_raw"], errors="coerce")
+    tmp["value"] = pd.to_numeric(tmp["value"], errors="coerce")
 
-    return fetch_ons_timeseries_json(uri_path, value_name)
+    tmp = tmp.dropna(subset=["date", "value"]).set_index("date").sort_index()
+    return tmp.rename(columns={"value": value_name})[[value_name]]
 
 @st.cache_data(ttl=60 * 60)
-def fetch_ons_timeseries_json(uri_path: str, value_name: str) -> pd.DataFrame:
-    parts = uri_path.strip("/").split("/")
-    series_id = parts[-2]
-    dataset_id = parts[-1]
-    url = f"https://api.ons.gov.uk/timeseries/{series_id}/dataset/{dataset_id}/data"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    j = r.json()
-
-    candidates = j.get("months") or j.get("quarters") or j.get("years") or []
-    rows = []
-    for item in candidates:
-        rows.append((item.get("date"), item.get("value")))
-
-    df = pd.DataFrame(rows, columns=["date_raw", "value"])
-    df["date"] = pd.to_datetime(df["date_raw"], errors="coerce")
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-    df = df.dropna(subset=["date", "value"]).set_index("date").sort_index()
-    return df.rename(columns={"value": value_name})[[value_name]]
-
-@st.cache_data(ttl=60 * 60)
-def fetch_boe_bank_rate_iumabedr():
+def fetch_boe_bank_rate_iumabedr() -> pd.DataFrame:
+    """
+    Bank of England IUMABEDR monthly average Bank Rate.
+    """
     url = (
         "https://www.bankofengland.co.uk/boeapps/database/Rates.asp?"
         "Travel=NIxIRx&into=GBP&Rateview=D&RateType=Plain&Rate=IUMABEDR&"
@@ -192,6 +174,9 @@ def fetch_boe_bank_rate_iumabedr():
     r.raise_for_status()
     df = pd.read_csv(StringIO(r.text))
 
+    if df.shape[1] < 2:
+        raise RuntimeError("Unexpected BoE CSV format for IUMABEDR.")
+
     date_col = df.columns[0]
     val_col = df.columns[-1]
 
@@ -200,10 +185,17 @@ def fetch_boe_bank_rate_iumabedr():
     tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce")
     tmp["bank_rate"] = pd.to_numeric(tmp["bank_rate"], errors="coerce")
     tmp = tmp.dropna(subset=["date", "bank_rate"]).set_index("date").sort_index()
+
     bank_me = tmp["bank_rate"].resample("M").mean().to_frame("bank_rate")
     return bank_me
 
-def build_features_live(cpi, unemp, bank, ftse_df, gbpusd_ret=None):
+def build_features_live(
+    cpi: pd.DataFrame,
+    unemp: pd.DataFrame,
+    bank: pd.DataFrame,
+    ftse_df: pd.DataFrame,
+    gbpusd_ret: pd.DataFrame | None = None
+):
     cpi_me = cpi.resample("M").last()
     unemp_me = unemp.resample("M").last()
     bank_me = bank.resample("M").mean()
@@ -298,7 +290,6 @@ except Exception as e:
     x_base = pd.read_csv(BASE_ROW_PATH, index_col=0)
     live_status = f"Live data failed; using saved baseline file. Reason: {type(e).__name__}: {e}"
 
-# Sidebar status
 if "failed" in live_status.lower():
     st.sidebar.markdown(f'<div class="status-warn">{live_status}</div>', unsafe_allow_html=True)
 else:
@@ -323,7 +314,6 @@ tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 with tabs[0]:
     st.markdown('<div class="section-title">Model Forecast Overview</div>', unsafe_allow_html=True)
 
-    # Scenario inputs
     st.subheader("Scenario shocks")
     s1, s2, s3 = st.columns(3)
     with s1:
@@ -333,7 +323,6 @@ with tabs[0]:
     with s3:
         delta_unemp = st.slider("Δ Unemployment rate (percentage points)", -2.0, 2.0, 0.0, 0.1)
 
-    # Predictions
     base_pred = predict(x_base)
 
     x_scn = x_base.copy()
@@ -354,7 +343,6 @@ with tabs[0]:
     k3.metric("Prediction change", f"{change:.6f}")
     k4.metric("Latest usable month", str(latest_month.date()) if latest_month is not None else "Saved baseline")
 
-    # Latest macro values
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CPI (YoY %)", f"{latest_data.get('cpi_inflation_yoy', x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
@@ -362,11 +350,9 @@ with tabs[0]:
     c3.metric("Bank Rate (%)", f"{latest_data.get('bank_rate', x_base.iloc[0].get('bank_rate', 0)):.2f}")
     c4.metric("FTSE monthly return", f"{latest_data.get('ftse_return', x_base.iloc[0].get('ftse_return', 0)):.4f}")
 
-    # Baseline row
     with st.expander("Show baseline feature row"):
         st.dataframe(x_base[feature_cols], use_container_width=True)
 
-    # Recent charts
     st.subheader("Recent market and macro data")
     ch1, ch2 = st.columns(2)
 
