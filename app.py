@@ -103,6 +103,40 @@ def make_line_chart(df: pd.DataFrame, title: str, y_col: str):
     )
     return fig
 
+def format_return(val: float) -> str:
+    return f"{val:.4%}"
+
+def delta_color_name(val: float) -> str:
+    if val > 0:
+        return "normal"
+    elif val < 0:
+        return "inverse"
+    return "off"
+
+def interpret_return(val: float) -> str:
+    if val >= 0.02:
+        return "strongly positive"
+    elif val >= 0.005:
+        return "moderately positive"
+    elif val > -0.005:
+        return "broadly neutral"
+    elif val > -0.02:
+        return "moderately negative"
+    else:
+        return "strongly negative"
+
+def change_message(delta: float) -> str:
+    if delta > 0.005:
+        return "The scenario improves the forecast noticeably relative to the baseline."
+    elif delta > 0.0:
+        return "The scenario slightly improves the forecast relative to the baseline."
+    elif delta == 0.0:
+        return "The scenario does not materially change the forecast."
+    elif delta > -0.005:
+        return "The scenario slightly weakens the forecast relative to the baseline."
+    else:
+        return "The scenario weakens the forecast noticeably relative to the baseline."
+
 @st.cache_data(ttl=60 * 60)
 def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     """
@@ -114,7 +148,7 @@ def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     if df.empty:
         raise RuntimeError("yfinance returned no FTSE data.")
 
-    # Sometimes yfinance can return multi-index columns depending on version/setup.
+    # yfinance can sometimes return MultiIndex columns
     if isinstance(df.columns, pd.MultiIndex):
         if ("Close", "^FTSE") in df.columns:
             close_series = df[("Close", "^FTSE")]
@@ -123,7 +157,6 @@ def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     else:
         close_series = df["Close"]
 
-    # IMPORTANT FIX: use ME instead of M
     close = close_series.resample("ME").last()
     ret = close.pct_change()
 
@@ -189,9 +222,7 @@ tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 with tabs[0]:
     st.markdown('<div class="section-title">Model Forecast Overview</div>', unsafe_allow_html=True)
 
-    # -----------------------------
     # Scenario controls
-    # -----------------------------
     st.subheader("Scenario shocks")
     s1, s2, s3 = st.columns(3)
     with s1:
@@ -201,9 +232,7 @@ with tabs[0]:
     with s3:
         delta_unemp = st.slider("Δ Unemployment rate (percentage points)", -2.0, 2.0, 0.0, 0.1)
 
-    # -----------------------------
     # Predictions
-    # -----------------------------
     base_pred = predict(x_base)
 
     x_scn = x_base.copy()
@@ -217,70 +246,39 @@ with tabs[0]:
     scn_pred = predict(x_scn)
     change = scn_pred - base_pred
 
-    # -----------------------------
-    # Key metrics
-    # -----------------------------
-    st.subheader("Key metrics")
-    def format_return(val):
-    return f"{val:.4%}"
+    # Forecast metrics
+    st.subheader("Forecast metrics")
+    k1, k2, k3, k4 = st.columns(4)
 
-def delta_color(val):
-    if val > 0:
-        return "normal"
-    elif val < 0:
-        return "inverse"
-    return "off"
+    with k1:
+        st.metric(
+            "Baseline predicted return",
+            format_return(base_pred)
+        )
 
-k1.metric(
-    "Baseline predicted return",
-    format_return(base_pred)
-)
+    with k2:
+        st.metric(
+            "Scenario predicted return",
+            format_return(scn_pred),
+            delta=format_return(scn_pred - base_pred),
+            delta_color=delta_color_name(scn_pred - base_pred)
+        )
 
-k2.metric(
-    "Scenario predicted return",
-    format_return(scn_pred),
-    delta=format_return(scn_pred - base_pred),
-    delta_color=delta_color(scn_pred - base_pred)
-)
+    with k3:
+        st.metric(
+            "Prediction change",
+            format_return(change),
+            delta=format_return(change),
+            delta_color=delta_color_name(change)
+        )
 
-k3.metric(
-    "Prediction change",
-    format_return(change),
-    delta=format_return(change),
-    delta_color=delta_color(change)
-)
-    k4.metric(
-        "Latest market month",
-        str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
-    )
+    with k4:
+        st.metric(
+            "Latest market month",
+            str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
+        )
 
-    # -----------------------------
-    # Interpretation helpers
-    # -----------------------------
-    def interpret_return(val: float) -> str:
-        if val >= 0.02:
-            return "strongly positive"
-        elif val >= 0.005:
-            return "moderately positive"
-        elif val > -0.005:
-            return "broadly neutral"
-        elif val > -0.02:
-            return "moderately negative"
-        else:
-            return "strongly negative"
-
-    def change_message(delta: float) -> str:
-        if delta > 0.005:
-            return "The scenario improves the forecast noticeably relative to the baseline."
-        elif delta > 0.0:
-            return "The scenario slightly improves the forecast relative to the baseline."
-        elif delta == 0.0:
-            return "The scenario does not materially change the forecast."
-        elif delta > -0.005:
-            return "The scenario slightly weakens the forecast relative to the baseline."
-        else:
-            return "The scenario weakens the forecast noticeably relative to the baseline."
-
+    # Forecast interpretation
     baseline_text = interpret_return(base_pred)
     scenario_text = interpret_return(scn_pred)
 
@@ -295,9 +293,18 @@ k3.metric(
     )
     st.write(change_message(change))
 
-    # -----------------------------
-    # Economic interpretation
-    # -----------------------------
+    # Market sentiment signal
+    st.subheader("Market sentiment signal")
+    if scn_pred > 0.01:
+        st.success("Bullish outlook detected")
+    elif scn_pred > 0:
+        st.info("Slightly positive / stable outlook")
+    elif scn_pred > -0.01:
+        st.warning("Neutral to slightly negative outlook")
+    else:
+        st.error("Bearish outlook detected")
+
+    # Scenario insight
     st.subheader("Scenario insight")
     scenario_points = []
 
@@ -322,9 +329,7 @@ k3.metric(
     for point in scenario_points:
         st.write(f"- {point}")
 
-    # -----------------------------
     # Latest snapshot
-    # -----------------------------
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CPI (YoY %)", f"{float(x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
@@ -332,9 +337,7 @@ k3.metric(
     c3.metric("Bank Rate (%)", f"{float(x_base.iloc[0].get('bank_rate', 0)):.2f}")
     c4.metric("FTSE monthly return", f"{latest_ftse_return:.4f}")
 
-    # -----------------------------
     # FTSE recent trend summary
-    # -----------------------------
     st.subheader("Recent market trend summary")
     if ftse_live_df is not None and len(ftse_live_df) >= 3:
         last_3 = ftse_live_df["ftse_return"].tail(3)
@@ -347,18 +350,14 @@ k3.metric(
             trend_msg = "The FTSE 100 has been relatively mixed or stable over the last three monthly observations."
 
         st.write(trend_msg)
-        st.write(
-            f"Average monthly return over the last 3 observations: **{avg_3:.4%}**."
-        )
+        st.write(f"Average monthly return over the last 3 observations: **{avg_3:.4%}**.")
     else:
         st.write("Recent trend summary is unavailable because live market history could not be loaded.")
 
     with st.expander("Show baseline feature row"):
         st.dataframe(x_base[feature_cols], use_container_width=True)
 
-    # -----------------------------
     # Recent market and macro data
-    # -----------------------------
     st.subheader("Recent market and macro data")
     ch1, ch2 = st.columns(2)
 
@@ -387,10 +386,11 @@ k3.metric(
         st.dataframe(macro_summary, use_container_width=True, hide_index=True)
 
     st.info(
-        "This is a stable academic decision-support dashboard. "
+        "This dashboard provides AI-driven macro-financial forecasting and scenario analysis for academic research purposes. "
         "Live market data is refreshed from Yahoo Finance, while macroeconomic inputs are taken from the latest validated saved baseline. "
         "Forecasts are not guaranteed market predictions and are not financial advice."
     )
+
 # ============================================================
 # TAB 2: Results & Evidence
 # ============================================================
