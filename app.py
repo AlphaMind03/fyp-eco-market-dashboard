@@ -1,11 +1,9 @@
 # ===== START: app.py =====
 import os
-from io import StringIO
 
 import streamlit as st
 import pandas as pd
 import joblib
-import requests
 import yfinance as yf
 import plotly.graph_objects as go
 
@@ -70,9 +68,10 @@ BASE_ROW_PATH = "models/x_base_latest.csv"
 # -----------------------------
 model = joblib.load(MODEL_PATH)
 feature_cols = joblib.load(COLS_PATH)
+x_base = pd.read_csv(BASE_ROW_PATH, index_col=0)
 
 # -----------------------------
-# Utility
+# Utility functions
 # -----------------------------
 def predict(x_row: pd.DataFrame) -> float:
     return float(model.predict(x_row[feature_cols])[0])
@@ -104,230 +103,51 @@ def make_line_chart(df: pd.DataFrame, title: str, y_col: str):
     )
     return fig
 
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0 Safari/537.36"
-    )
-}
-
-# ============================================================
-# LIVE DATA FETCH
-# ============================================================
-
 @st.cache_data(ttl=60 * 60)
-def fetch_ftse_prices_and_returns(start="1990-01-01") -> pd.DataFrame:
+def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
+    """
+    Stable live data source: Yahoo Finance FTSE 100.
+    We only use this for recent market display, not to rebuild macro features live.
+    """
     df = yf.download("^FTSE", start=start, progress=False, auto_adjust=True)
     if df.empty:
         raise RuntimeError("yfinance returned no FTSE data.")
+
     close = df["Close"].resample("M").last()
     ret = close.pct_change()
+
     out = pd.DataFrame({
         "ftse_close": close,
         "ftse_return": ret
     }).dropna()
+
     return out
-
-@st.cache_data(ttl=60 * 60)
-def fetch_gbpusd_monthly_return(start="1990-01-01") -> pd.DataFrame:
-    df = yf.download("GBPUSD=X", start=start, progress=False, auto_adjust=True)
-    if df.empty:
-        raise RuntimeError("yfinance returned no GBP/USD data.")
-    close = df["Close"].resample("M").last()
-    ret = close.pct_change()
-    return pd.DataFrame({"gbpusd_return": ret}).dropna()
-
-@st.cache_data(ttl=60 * 60)
-def fetch_ons_timeseries_csv(uri_path: str, value_name: str) -> pd.DataFrame:
-    """
-    Try ONS generator CSV first, then fall back to ONS JSON API.
-    """
-    encoded_uri = requests.utils.quote(uri_path, safe="")
-    url = f"https://www.ons.gov.uk/generator?format=csv&uri={encoded_uri}"
-
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-        raw = pd.read_csv(StringIO(r.text))
-
-        if raw.shape[1] >= 2:
-            tmp = raw.iloc[:, :2].copy()
-            tmp.columns = ["date_raw", "value"]
-            tmp["date"] = pd.to_datetime(tmp["date_raw"], errors="coerce")
-            tmp["value"] = pd.to_numeric(tmp["value"], errors="coerce")
-            tmp = tmp.dropna(subset=["date", "value"]).set_index("date").sort_index()
-            if not tmp.empty:
-                return tmp.rename(columns={"value": value_name})[[value_name]]
-    except Exception:
-        pass
-
-    return fetch_ons_timeseries_json(uri_path, value_name)
-
-@st.cache_data(ttl=60 * 60)
-def fetch_ons_timeseries_json(uri_path: str, value_name: str) -> pd.DataFrame:
-    parts = uri_path.strip("/").split("/")
-    series_id = parts[-2]
-    dataset_id = parts[-1]
-    url = f"https://api.ons.gov.uk/timeseries/{series_id}/dataset/{dataset_id}/data"
-
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-    j = r.json()
-
-    candidates = j.get("months") or j.get("quarters") or j.get("years") or []
-    rows = [(item.get("date"), item.get("value")) for item in candidates]
-
-    df = pd.DataFrame(rows, columns=["date_raw", "value"])
-    df["date"] = pd.to_datetime(df["date_raw"], errors="coerce")
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-    df = df.dropna(subset=["date", "value"]).set_index("date").sort_index()
-    if df.empty:
-        raise RuntimeError(f"ONS JSON returned no usable data for {uri_path}")
-    return df.rename(columns={"value": value_name})[[value_name]]
-
-@st.cache_data(ttl=60 * 60)
-def fetch_boe_bank_rate_iumabedr() -> pd.DataFrame:
-    """
-    Scrape the public Bank Rate history page instead of the blocked CSV endpoint.
-    The page contains 'Date Changed' and 'Rate' rows publicly.
-    """
-    url = "https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp"
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
-
-    tables = pd.read_html(StringIO(r.text))
-    rate_table = None
-
-    for t in tables:
-        cols = [str(c).strip().lower() for c in t.columns]
-        joined = " | ".join(cols)
-        if "date changed" in joined and "rate" in joined:
-            rate_table = t.copy()
-            break
-
-    if rate_table is None:
-        raise RuntimeError("Could not find Bank Rate table on BoE page.")
-
-    rate_table.columns = [str(c).strip().lower() for c in rate_table.columns]
-    date_col = rate_table.columns[0]
-    rate_col = rate_table.columns[-1]
-
-    tmp = rate_table[[date_col, rate_col]].copy()
-    tmp.columns = ["date", "bank_rate"]
-
-    tmp["date"] = pd.to_datetime(tmp["date"], errors="coerce", dayfirst=True)
-    tmp["bank_rate"] = pd.to_numeric(tmp["bank_rate"], errors="coerce")
-    tmp = tmp.dropna(subset=["date", "bank_rate"]).set_index("date").sort_index()
-
-    if tmp.empty:
-        raise RuntimeError("BoE Bank Rate table parsed but no usable rows were found.")
-
-    daily_index = pd.date_range(tmp.index.min(), pd.Timestamp.today(), freq="D")
-    tmp = tmp.reindex(daily_index).ffill()
-    tmp.index.name = "date"
-
-    bank_me = tmp["bank_rate"].resample("M").last().to_frame("bank_rate")
-    return bank_me
-
-def build_features_live(
-    cpi: pd.DataFrame,
-    unemp: pd.DataFrame,
-    bank: pd.DataFrame,
-    ftse_df: pd.DataFrame,
-    gbpusd_ret: pd.DataFrame | None = None
-):
-    cpi_me = cpi.resample("M").last()
-    unemp_me = unemp.resample("M").last()
-    bank_me = bank.resample("M").last()
-    ftse_me = ftse_df.resample("M").last()
-
-    data = (
-        cpi_me.join(unemp_me, how="inner")
-        .join(bank_me, how="inner")
-        .join(ftse_me[["ftse_return"]], how="inner")
-    )
-
-    if gbpusd_ret is not None:
-        gbp_me = gbpusd_ret.resample("M").last()
-        data = data.join(gbp_me, how="inner")
-
-    for col in ["cpi_inflation_yoy", "unemployment_rate", "bank_rate", "ftse_return", "gbpusd_return"]:
-        if col in data.columns:
-            data[f"{col}_lag1"] = data[col].shift(1)
-            data[f"{col}_lag3"] = data[col].shift(3)
-
-    if "ftse_return" in data.columns:
-        data["ftse_return_roll3_mean"] = data["ftse_return"].rolling(3).mean()
-        data["ftse_return_roll3_std"] = data["ftse_return"].rolling(3).std()
-
-    data = data.dropna()
-
-    usable = [c for c in feature_cols if c in data.columns]
-    X_full = data[usable].copy()
-    return X_full, data
 
 # -----------------------------
 # Sidebar
 # -----------------------------
 st.sidebar.title("Controls")
-st.sidebar.caption("Live refresh + scenario analysis")
+st.sidebar.caption("Stable deployed version")
 
-refresh = st.sidebar.button("Refresh Live Data (APIs)")
+refresh = st.sidebar.button("Refresh Live Market Data")
 if refresh:
     st.cache_data.clear()
 
 # -----------------------------
-# Live data with fallback
+# Stable live market fetch only
 # -----------------------------
-x_base = None
-live_status = None
-latest_month = None
-latest_data = {}
 ftse_live_df = None
-macro_chart_df = None
+live_status = None
 
 try:
-    cpi = fetch_ons_timeseries_csv(
-        "/economy/inflationandpriceindices/timeseries/d7g7/mm23",
-        "cpi_inflation_yoy"
-    )
-    unemp = fetch_ons_timeseries_csv(
-        "/employmentandlabourmarket/peoplenotinwork/unemployment/timeseries/mgsx/lms",
-        "unemployment_rate"
-    )
-    bank = fetch_boe_bank_rate_iumabedr()
     ftse_live_df = fetch_ftse_prices_and_returns()
-
-    gbp_needed = any(col.startswith("gbpusd_return") for col in feature_cols)
-    gbp = fetch_gbpusd_monthly_return() if gbp_needed else None
-
-    X_live, merged_live = build_features_live(cpi, unemp, bank, ftse_live_df, gbpusd_ret=gbp)
-    x_base = X_live.loc[[X_live.index.max()]].copy()
-
-    latest_month = X_live.index.max()
-    latest_data["cpi_inflation_yoy"] = float(cpi.resample("M").last().iloc[-1, 0])
-    latest_data["unemployment_rate"] = float(unemp.resample("M").last().iloc[-1, 0])
-    latest_data["bank_rate"] = float(bank.resample("M").last().iloc[-1, 0])
-    latest_data["ftse_return"] = float(ftse_live_df["ftse_return"].iloc[-1])
-
-    if gbp_needed and gbp is not None:
-        latest_data["gbpusd_return"] = float(gbp["gbpusd_return"].iloc[-1])
-
-    macro_chart_df = pd.concat(
-        [
-            cpi.resample("M").last().tail(24),
-            unemp.resample("M").last().tail(24),
-            bank.resample("M").last().tail(24)
-        ],
-        axis=1
-    )
-
-    live_status = f"Live data OK. Latest usable month: {latest_month.date()}"
-
+    latest_ftse_return = float(ftse_live_df["ftse_return"].iloc[-1])
+    latest_market_month = ftse_live_df.index.max()
+    live_status = f"Live FTSE data OK. Latest market month: {latest_market_month.date()}"
 except Exception as e:
-    x_base = pd.read_csv(BASE_ROW_PATH, index_col=0)
-    live_status = f"Live data failed; using saved baseline file. Reason: {type(e).__name__}: {e}"
+    latest_ftse_return = float(x_base.iloc[0].get("ftse_return", 0))
+    latest_market_month = None
+    live_status = f"Live FTSE fetch failed; using saved market baseline. Reason: {type(e).__name__}: {e}"
 
 if "failed" in live_status.lower():
     st.sidebar.markdown(f'<div class="status-warn">{live_status}</div>', unsafe_allow_html=True)
@@ -335,7 +155,8 @@ else:
     st.sidebar.markdown(f'<div class="status-ok">{live_status}</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown(
-    '<div class="small-note">This dashboard is for academic forecasting and scenario analysis, not financial advice.</div>',
+    '<div class="small-note">Macroeconomic inputs are taken from the latest validated saved baseline. '
+    'Live market data is refreshed from Yahoo Finance.</div>',
     unsafe_allow_html=True
 )
 
@@ -380,14 +201,14 @@ with tabs[0]:
     k1.metric("Baseline predicted return", f"{base_pred:.6f}")
     k2.metric("Scenario predicted return", f"{scn_pred:.6f}")
     k3.metric("Prediction change", f"{change:.6f}")
-    k4.metric("Latest usable month", str(latest_month.date()) if latest_month is not None else "Saved baseline")
+    k4.metric("Latest market month", str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline")
 
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("CPI (YoY %)", f"{latest_data.get('cpi_inflation_yoy', x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
-    c2.metric("Unemployment (%)", f"{latest_data.get('unemployment_rate', x_base.iloc[0].get('unemployment_rate', 0)):.2f}")
-    c3.metric("Bank Rate (%)", f"{latest_data.get('bank_rate', x_base.iloc[0].get('bank_rate', 0)):.2f}")
-    c4.metric("FTSE monthly return", f"{latest_data.get('ftse_return', x_base.iloc[0].get('ftse_return', 0)):.4f}")
+    c1.metric("CPI (YoY %)", f"{x_base.iloc[0].get('cpi_inflation_yoy', 0):.2f}")
+    c2.metric("Unemployment (%)", f"{x_base.iloc[0].get('unemployment_rate', 0):.2f}")
+    c3.metric("Bank Rate (%)", f"{x_base.iloc[0].get('bank_rate', 0):.2f}")
+    c4.metric("FTSE monthly return", f"{latest_ftse_return:.4f}")
 
     with st.expander("Show baseline feature row"):
         st.dataframe(x_base[feature_cols], use_container_width=True)
@@ -405,24 +226,21 @@ with tabs[0]:
             st.warning("Live FTSE chart unavailable; app is using saved baseline.")
 
     with ch2:
-        if macro_chart_df is not None:
-            fig = go.Figure()
-            for col in macro_chart_df.columns:
-                fig.add_trace(go.Scatter(x=macro_chart_df.index, y=macro_chart_df[col], mode="lines", name=col))
-            fig.update_layout(
-                title="Macro Indicators (last 24 months)",
-                template="plotly_dark",
-                height=340,
-                margin=dict(l=20, r=20, t=45, b=20),
-                xaxis_title="Date",
-                yaxis_title="Value"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Live macro charts unavailable; app is using saved baseline.")
+        # Since this is the stable version, macro comes from saved baseline.
+        # We show a compact summary table instead of fragile live macro charts.
+        macro_summary = pd.DataFrame({
+            "Metric": ["CPI (YoY %)", "Unemployment (%)", "Bank Rate (%)"],
+            "Saved baseline value": [
+                float(x_base.iloc[0].get("cpi_inflation_yoy", 0)),
+                float(x_base.iloc[0].get("unemployment_rate", 0)),
+                float(x_base.iloc[0].get("bank_rate", 0)),
+            ]
+        })
+        st.dataframe(macro_summary, use_container_width=True, hide_index=True)
 
     st.info(
-        "This is an academic decision-support tool. Macroeconomic indicators may be released with lags and revised. "
+        "This is a stable academic decision-support dashboard. "
+        "Live market data is refreshed from Yahoo Finance, while macroeconomic inputs are taken from the latest validated saved baseline. "
         "Forecasts are not guaranteed market predictions and are not financial advice."
     )
 
@@ -457,6 +275,11 @@ with tabs[2]:
         - Use UK macroeconomic indicators such as CPI inflation, unemployment rate, and Bank Rate
           to help predict next-month FTSE 100 return.
         - Support decision-making through scenario analysis rather than direct trading signals.
+
+        **Why this deployed version is stable**
+        - Live market data (FTSE 100) is refreshed from Yahoo Finance.
+        - Macroeconomic inputs are loaded from the latest validated saved baseline used by the trained model.
+        - This avoids unreliable public macro endpoints breaking the application.
 
         **Model design**
         - Supervised regression problem
