@@ -14,14 +14,13 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Simple styling
+# Premium styling
 # -----------------------------
 st.markdown("""
 <style>
 :root {
     --card-bg: rgba(17, 25, 40, 0.88);
     --card-border: rgba(255, 255, 255, 0.08);
-    --soft-accent: rgba(59, 130, 246, 0.18);
     --success-bg: rgba(16, 185, 129, 0.15);
     --success-border: rgba(16, 185, 129, 0.35);
     --warn-bg: rgba(245, 158, 11, 0.15);
@@ -110,14 +109,6 @@ h1, h2, h3 {
     border: 1px solid var(--card-border);
     box-shadow: 0 18px 40px rgba(0,0,0,0.24);
     margin-bottom: 1rem;
-}
-
-.metric-card {
-    padding: 0.85rem 1rem;
-    border-radius: 18px;
-    background: linear-gradient(180deg, rgba(30,41,59,0.88), rgba(15,23,42,0.92));
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 14px 30px rgba(0,0,0,0.20);
 }
 
 div[data-testid="stMetric"] {
@@ -258,10 +249,6 @@ def change_message(delta: float) -> str:
 
 @st.cache_data(ttl=60 * 60)
 def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
-    """
-    Stable live data source: Yahoo Finance FTSE 100.
-    We only use this for recent market display, not to rebuild macro features live.
-    """
     df = yf.download("^FTSE", start=start, progress=False, auto_adjust=True)
 
     if df.empty:
@@ -335,15 +322,16 @@ st.markdown("""
     <div class="hero-subtitle">AI-driven macro-financial forecasting and scenario analysis for academic research.</div>
 </div>
 """, unsafe_allow_html=True)
+
 tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 
 # ============================================================
 # TAB 1: Dashboard
 # ============================================================
 with tabs[0]:
-    st.markdown('<div class="section-title">Model Forecast Overview</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Forecast Overview</div>', unsafe_allow_html=True)
 
-    # Scenario controls
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("Scenario shocks")
     s1, s2, s3 = st.columns(3)
     with s1:
@@ -352,8 +340,8 @@ with tabs[0]:
         delta_bank = st.slider("Δ Bank Rate (percentage points)", -2.0, 2.0, 0.0, 0.1)
     with s3:
         delta_unemp = st.slider("Δ Unemployment rate (percentage points)", -2.0, 2.0, 0.0, 0.1)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Predictions
     base_pred = predict(x_base)
 
     x_scn = x_base.copy()
@@ -367,17 +355,12 @@ with tabs[0]:
     scn_pred = predict(x_scn)
     change = scn_pred - base_pred
 
-    # Forecast metrics
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-st.subheader("Forecast metrics")
+    st.subheader("Forecast metrics")
     k1, k2, k3, k4 = st.columns(4)
 
     with k1:
-        st.metric(
-            "Baseline predicted return",
-            format_return(base_pred)
-        )
-
+        st.metric("Baseline predicted return", format_return(base_pred))
     with k2:
         st.metric(
             "Scenario predicted return",
@@ -385,7 +368,6 @@ st.subheader("Forecast metrics")
             delta=format_return(scn_pred - base_pred),
             delta_color=delta_color_name(scn_pred - base_pred)
         )
-
     with k3:
         st.metric(
             "Prediction change",
@@ -393,17 +375,17 @@ st.subheader("Forecast metrics")
             delta=format_return(change),
             delta_color=delta_color_name(change)
         )
-
     with k4:
         st.metric(
             "Latest market month",
             str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
         )
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Forecast interpretation
     baseline_text = interpret_return(base_pred)
     scenario_text = interpret_return(scn_pred)
 
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("Forecast interpretation")
     st.write(
         f"The baseline model output suggests a **{baseline_text}** next-month FTSE 100 outlook, "
@@ -415,7 +397,6 @@ st.subheader("Forecast metrics")
     )
     st.write(change_message(change))
 
-    # Model summary
     st.subheader("Model summary")
     st.write("""
 - Model: Tuned Ridge Regression  
@@ -424,8 +405,9 @@ st.subheader("Forecast metrics")
 - Validation: Time-series-aware train/test split  
 - Purpose: Scenario-based forecasting for academic decision support  
 """)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Model-based outlook
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("Model-based market outlook")
     if scn_pred > 0.01:
         st.success("Bullish outlook detected")
@@ -435,9 +417,10 @@ st.subheader("Forecast metrics")
         st.warning("Neutral to slightly negative outlook")
     else:
         st.error("Bearish outlook detected")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Scenario insight
-    st.subheader("Scenario insight")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.subheader("Economic interpretation of scenario")
     scenario_points = []
 
     if delta_cpi > 0:
@@ -461,7 +444,6 @@ st.subheader("Forecast metrics")
     for point in scenario_points:
         st.write(f"- {point}")
 
-    # Model limitations
     st.subheader("Model limitations")
     st.write("""
 - Macroeconomic indicators are slower-moving and may not capture sudden market shocks  
@@ -469,8 +451,9 @@ st.subheader("Forecast metrics")
 - External factors such as geopolitical shocks and firm-specific events are not explicitly included  
 - Forecasts are probabilistic estimates and should not be interpreted as guaranteed outcomes  
 """)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Latest snapshot
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("Latest market and macro snapshot")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("CPI (YoY %)", f"{float(x_base.iloc[0].get('cpi_inflation_yoy', 0)):.2f}")
@@ -478,7 +461,6 @@ st.subheader("Forecast metrics")
     c3.metric("Bank Rate (%)", f"{float(x_base.iloc[0].get('bank_rate', 0)):.2f}")
     c4.metric("FTSE monthly return", f"{latest_ftse_return:.4f}")
 
-    # FTSE recent trend summary
     st.subheader("Recent market trend summary")
     if ftse_live_df is not None and len(ftse_live_df) >= 3:
         last_3 = ftse_live_df["ftse_return"].tail(3)
@@ -494,11 +476,12 @@ st.subheader("Forecast metrics")
         st.write(f"Average monthly return over the last 3 observations: **{avg_3:.4%}**.")
     else:
         st.write("Recent trend summary is unavailable because live market history could not be loaded.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     with st.expander("Show baseline feature row"):
         st.dataframe(x_base[feature_cols], use_container_width=True)
 
-    # Recent market and macro data
     st.subheader("Recent market and macro data")
     ch1, ch2 = st.columns(2)
 
@@ -531,6 +514,7 @@ st.subheader("Forecast metrics")
         "Live market data is refreshed from Yahoo Finance, while macroeconomic inputs are taken from the latest validated saved baseline. "
         "Forecasts are not guaranteed market predictions and are not financial advice."
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
 # TAB 2: Results & Evidence
@@ -550,9 +534,12 @@ with tabs[1]:
         "R²": [-0.035601, -0.079228, -0.878534, -1.032138]
     })
 
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("Model performance summary")
     st.dataframe(perf_df, use_container_width=True, hide_index=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     colA, colB = st.columns(2)
 
     with colA:
@@ -570,11 +557,13 @@ with tabs[1]:
             "figures/scenario_impacts.png",
             "Scenario impacts (macro shocks)"
         )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
 # TAB 3: About
 # ============================================================
 with tabs[2]:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("About this dashboard")
     st.write(
         """
@@ -607,5 +596,6 @@ with tabs[2]:
         It should not be interpreted as financial advice or a guaranteed prediction system.
         """
     )
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # ===== END: app.py =====
