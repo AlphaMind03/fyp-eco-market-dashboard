@@ -18,40 +18,159 @@ st.set_page_config(
 # -----------------------------
 st.markdown("""
 <style>
-.main > div {
-    padding-top: 1rem;
+:root {
+    --card-bg: rgba(17, 25, 40, 0.88);
+    --card-border: rgba(255, 255, 255, 0.08);
+    --soft-accent: rgba(59, 130, 246, 0.18);
+    --success-bg: rgba(16, 185, 129, 0.15);
+    --success-border: rgba(16, 185, 129, 0.35);
+    --warn-bg: rgba(245, 158, 11, 0.15);
+    --warn-border: rgba(245, 158, 11, 0.35);
 }
+
+html, body, [class*="css"] {
+    font-family: "Inter", "Segoe UI", sans-serif;
+}
+
+.main > div {
+    padding-top: 0.5rem;
+}
+
 .block-container {
     padding-top: 1.2rem;
-    padding-bottom: 1rem;
+    padding-bottom: 2rem;
+    max-width: 1300px;
 }
-.status-ok {
-    padding: 0.6rem 0.9rem;
-    border-radius: 10px;
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    color: #d1fae5;
-    font-size: 0.95rem;
-    margin-bottom: 0.6rem;
+
+h1, h2, h3 {
+    letter-spacing: -0.02em;
 }
-.status-warn {
-    padding: 0.6rem 0.9rem;
-    border-radius: 10px;
-    background: rgba(245, 158, 11, 0.15);
-    border: 1px solid rgba(245, 158, 11, 0.4);
-    color: #fef3c7;
-    font-size: 0.95rem;
-    margin-bottom: 0.6rem;
+
+.hero-box {
+    padding: 1.4rem 1.4rem 1rem 1.4rem;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.96));
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.28);
+    margin-bottom: 1rem;
 }
+
+.hero-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1.05;
+    margin-bottom: 0.35rem;
+}
+
+.hero-subtitle {
+    font-size: 1rem;
+    opacity: 0.82;
+    margin-bottom: 0.15rem;
+}
+
 .section-title {
-    font-size: 1.2rem;
-    font-weight: 600;
-    margin-top: 0.4rem;
-    margin-bottom: 0.2rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-top: 0.2rem;
+    margin-bottom: 0.5rem;
 }
+
+.status-ok {
+    padding: 0.8rem 0.9rem;
+    border-radius: 16px;
+    background: var(--success-bg);
+    border: 1px solid var(--success-border);
+    color: #d1fae5;
+    font-size: 0.96rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    margin-bottom: 0.75rem;
+}
+
+.status-warn {
+    padding: 0.8rem 0.9rem;
+    border-radius: 16px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: #fef3c7;
+    font-size: 0.96rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    margin-bottom: 0.75rem;
+}
+
 .small-note {
-    font-size: 0.9rem;
-    opacity: 0.85;
+    font-size: 0.92rem;
+    opacity: 0.9;
+    line-height: 1.5;
+}
+
+.glass-card {
+    padding: 1rem 1rem 0.8rem 1rem;
+    border-radius: 20px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.24);
+    margin-bottom: 1rem;
+}
+
+.metric-card {
+    padding: 0.85rem 1rem;
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(30,41,59,0.88), rgba(15,23,42,0.92));
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 14px 30px rgba(0,0,0,0.20);
+}
+
+div[data-testid="stMetric"] {
+    background: linear-gradient(180deg, rgba(30,41,59,0.88), rgba(15,23,42,0.92));
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 16px;
+    border-radius: 18px;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.20);
+    min-height: 120px;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-weight: 600;
+}
+
+div[data-testid="stDataFrame"] {
+    border-radius: 18px;
+    overflow: hidden;
+}
+
+div.stButton > button {
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(29,78,216,0.95));
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 12px 24px rgba(37,99,235,0.24);
+}
+
+div.stButton > button:hover {
+    border: 1px solid rgba(255,255,255,0.12);
+    background: linear-gradient(180deg, rgba(59,130,246,1), rgba(37,99,235,1));
+    color: white;
+}
+
+div[data-testid="stExpander"] {
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 12px 12px 0 0;
+    padding-left: 14px;
+    padding-right: 14px;
+}
+
+hr {
+    border-color: rgba(255,255,255,0.08);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -210,9 +329,12 @@ st.sidebar.markdown(
 # -----------------------------
 # Header
 # -----------------------------
-st.title("FTSE 100 Macro Intelligence Dashboard")
-st.caption("AI-driven macro-financial forecasting and scenario-based analysis for academic research.")
-
+st.markdown("""
+<div class="hero-box">
+    <div class="hero-title">FTSE 100 Macro Intelligence Dashboard</div>
+    <div class="hero-subtitle">AI-driven macro-financial forecasting and scenario analysis for academic research.</div>
+</div>
+""", unsafe_allow_html=True)
 tabs = st.tabs(["Dashboard", "Results & Evidence", "About"])
 
 # ============================================================
@@ -246,7 +368,8 @@ with tabs[0]:
     change = scn_pred - base_pred
 
     # Forecast metrics
-    st.subheader("Forecast metrics")
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+st.subheader("Forecast metrics")
     k1, k2, k3, k4 = st.columns(4)
 
     with k1:
