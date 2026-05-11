@@ -1,4 +1,3 @@
-# ===== START: app.py =====
 import os
 
 import streamlit as st
@@ -14,168 +13,103 @@ st.set_page_config(
 )
 
 # -----------------------------
-# Premium styling
+# Professional styling: works in Light + Dark mode
 # -----------------------------
 st.markdown("""
 <style>
 :root {
-    --card-bg: rgba(17, 25, 40, 0.88);
-    --card-border: rgba(255, 255, 255, 0.08);
-    --success-bg: rgba(16, 185, 129, 0.15);
-    --success-border: rgba(16, 185, 129, 0.35);
-    --warn-bg: rgba(245, 158, 11, 0.15);
-    --warn-border: rgba(245, 158, 11, 0.35);
+    --primary:#2563eb; --primary-dark:#1d4ed8; --accent:#ef4444;
+    --page-bg:#f8fafc; --text-main:#0f172a; --text-muted:#475569;
+    --card-bg:#ffffff; --card-bg-soft:#f1f5f9; --card-border:#cbd5e1;
+    --shadow:rgba(15,23,42,0.10);
+    --hero-bg-1:#0f172a; --hero-bg-2:#1e293b; --hero-text:#ffffff; --hero-subtext:#dbeafe;
+    --success-bg:rgba(22,163,74,0.12); --success-border:rgba(22,163,74,0.35); --success-text:#166534;
+    --warn-bg:rgba(217,119,6,0.12); --warn-border:rgba(217,119,6,0.35); --warn-text:#92400e;
 }
-
-html, body, [class*="css"] {
-    font-family: "Inter", "Segoe UI", sans-serif;
+@media (prefers-color-scheme: dark) {
+    :root {
+        --page-bg:#0b0f19; --text-main:#f8fafc; --text-muted:#cbd5e1;
+        --card-bg:#111827; --card-bg-soft:#1e293b; --card-border:#334155;
+        --shadow:rgba(0,0,0,0.35);
+        --success-bg:rgba(16,185,129,0.15); --success-border:rgba(16,185,129,0.35); --success-text:#d1fae5;
+        --warn-bg:rgba(245,158,11,0.15); --warn-border:rgba(245,158,11,0.35); --warn-text:#fef3c7;
+    }
 }
-
-.main > div {
-    padding-top: 0.5rem;
-}
-
-.block-container {
-    padding-top: 1.2rem;
-    padding-bottom: 2rem;
-    max-width: 1300px;
-}
-
-h1, h2, h3 {
-    letter-spacing: -0.02em;
-}
+.stApp { background:var(--page-bg); color:var(--text-main); }
+html, body, [class*="css"] { font-family:"Inter","Segoe UI",Arial,sans-serif; }
+.main > div { padding-top:0.5rem; }
+.block-container { padding-top:1.2rem; padding-bottom:2rem; max-width:1320px; }
+h1,h2,h3 { color:var(--text-main)!important; letter-spacing:-0.02em; font-weight:800!important; }
 
 .hero-box {
-    padding: 1.4rem 1.4rem 1rem 1.4rem;
-    border-radius: 22px;
-    background: linear-gradient(135deg, rgba(30,41,59,0.95), rgba(15,23,42,0.96));
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 18px 40px rgba(0,0,0,0.28);
-    margin-bottom: 1rem;
+    padding:1.45rem 1.6rem 1.15rem 1.6rem; border-radius:22px;
+    background:linear-gradient(135deg,var(--hero-bg-2),var(--hero-bg-1));
+    border:1px solid rgba(148,163,184,0.28); box-shadow:0 18px 40px var(--shadow);
+    margin-bottom:1rem;
 }
-
-.hero-title {
-    font-size: 2.4rem;
-    font-weight: 800;
-    line-height: 1.05;
-    margin-bottom: 0.35rem;
-}
-
-.hero-subtitle {
-    font-size: 1rem;
-    opacity: 0.82;
-    margin-bottom: 0.15rem;
-}
-
-.section-title {
-    font-size: 1.15rem;
-    font-weight: 700;
-    margin-top: 0.2rem;
-    margin-bottom: 0.5rem;
-}
-
-.status-ok {
-    padding: 0.8rem 0.9rem;
-    border-radius: 16px;
-    background: var(--success-bg);
-    border: 1px solid var(--success-border);
-    color: #d1fae5;
-    font-size: 0.96rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    margin-bottom: 0.75rem;
-}
-
-.status-warn {
-    padding: 0.8rem 0.9rem;
-    border-radius: 16px;
-    background: var(--warn-bg);
-    border: 1px solid var(--warn-border);
-    color: #fef3c7;
-    font-size: 0.96rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    margin-bottom: 0.75rem;
-}
-
-.small-note {
-    font-size: 0.92rem;
-    opacity: 0.9;
-    line-height: 1.5;
-}
+.hero-title { color:var(--hero-text)!important; font-size:clamp(2rem,4vw,2.6rem); font-weight:850; line-height:1.05; margin-bottom:0.45rem; }
+.hero-subtitle { color:var(--hero-subtext)!important; font-size:1rem; margin-bottom:0.1rem; }
+.section-title { color:var(--text-main)!important; font-size:1.15rem; font-weight:750; margin-top:0.2rem; margin-bottom:0.65rem; }
 
 .glass-card {
-    padding: 1rem 1rem 0.8rem 1rem;
-    border-radius: 20px;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    box-shadow: 0 18px 40px rgba(0,0,0,0.24);
-    margin-bottom: 1rem;
+    padding:1rem 1rem 0.9rem 1rem; border-radius:20px; background:var(--card-bg);
+    border:1px solid var(--card-border); box-shadow:0 14px 30px var(--shadow);
+    margin-bottom:1rem; color:var(--text-main)!important;
 }
+.status-ok,.status-warn {
+    padding:0.8rem 0.9rem; border-radius:16px; font-size:0.96rem;
+    box-shadow:0 8px 22px var(--shadow); margin-bottom:0.75rem; font-weight:650;
+}
+.status-ok { background:var(--success-bg); border:1px solid var(--success-border); color:var(--success-text)!important; }
+.status-warn { background:var(--warn-bg); border:1px solid var(--warn-border); color:var(--warn-text)!important; }
+.small-note { color:var(--text-muted)!important; font-size:0.92rem; line-height:1.5; }
 
 div[data-testid="stMetric"] {
-    background: linear-gradient(180deg, rgba(30,41,59,0.88), rgba(15,23,42,0.92));
-    border: 1px solid rgba(255,255,255,0.08);
-    padding: 14px 16px;
-    border-radius: 18px;
-    box-shadow: 0 14px 30px rgba(0,0,0,0.20);
-    min-height: 120px;
+    background:linear-gradient(135deg,var(--card-bg),var(--card-bg-soft));
+    border:1px solid var(--card-border); padding:16px 18px; border-radius:18px;
+    box-shadow:0 12px 26px var(--shadow); min-height:120px; color:var(--text-main)!important;
 }
+div[data-testid="stMetricLabel"] { color:var(--text-muted)!important; font-weight:700!important; }
+div[data-testid="stMetricValue"] { color:var(--text-main)!important; font-weight:750!important; }
+div[data-testid="stMetricDelta"] { font-weight:700!important; }
 
-div[data-testid="stMetricLabel"] {
-    font-weight: 600;
+.stSlider label, .stSelectbox label, .stNumberInput label, .stTextInput label {
+    color:var(--text-main)!important; font-weight:650!important;
 }
-
-div[data-testid="stDataFrame"] {
-    border-radius: 18px;
-    overflow: hidden;
-}
-
 div.stButton > button {
-    border-radius: 14px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(29,78,216,0.95));
-    color: white;
-    font-weight: 600;
-    box-shadow: 0 12px 24px rgba(37,99,235,0.24);
+    border-radius:14px; border:1px solid rgba(37,99,235,0.25);
+    background:linear-gradient(180deg,var(--primary),var(--primary-dark));
+    color:white!important; font-weight:700; box-shadow:0 12px 24px rgba(37,99,235,0.25);
 }
-
 div.stButton > button:hover {
-    border: 1px solid rgba(255,255,255,0.12);
-    background: linear-gradient(180deg, rgba(59,130,246,1), rgba(37,99,235,1));
-    color: white;
+    border:1px solid rgba(37,99,235,0.45);
+    background:linear-gradient(180deg,#3b82f6,var(--primary)); color:white!important;
 }
+.stTabs [data-baseweb="tab-list"] { gap:8px; border-bottom:1px solid var(--card-border); }
+.stTabs [data-baseweb="tab"] { color:var(--text-main)!important; border-radius:12px 12px 0 0; padding-left:14px; padding-right:14px; font-weight:700; }
 
-div[data-testid="stExpander"] {
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.08);
-    overflow: hidden;
-}
-
-.stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-}
-
-.stTabs [data-baseweb="tab"] {
-    border-radius: 12px 12px 0 0;
-    padding-left: 14px;
-    padding-right: 14px;
-}
-
-hr {
-    border-color: rgba(255,255,255,0.08);
+div[data-testid="stDataFrame"] { border-radius:18px; overflow:hidden; border:1px solid var(--card-border); }
+div[data-testid="stExpander"] { border-radius:18px; border:1px solid var(--card-border); overflow:hidden; background:var(--card-bg); }
+div[data-testid="stAlert"] { border-radius:16px; }
+section[data-testid="stSidebar"] { background:var(--card-bg-soft); border-right:1px solid var(--card-border); }
+section[data-testid="stSidebar"] * { color:var(--text-main); }
+hr { border-color:var(--card-border); }
+@media (max-width:900px) {
+    .hero-title { font-size:1.9rem; }
+    .hero-subtitle { font-size:0.95rem; }
+    .glass-card { padding:0.85rem; }
+    div[data-testid="stMetric"] { min-height:105px; }
 }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# Paths
+# Paths and artifacts
 # -----------------------------
 MODEL_PATH = "models/best_ridge_tuned.pkl"
 COLS_PATH = "models/feature_cols.pkl"
 BASE_ROW_PATH = "models/x_base_latest.csv"
 
-# -----------------------------
-# Load model artifacts
-# -----------------------------
 model = joblib.load(MODEL_PATH)
 feature_cols = joblib.load(COLS_PATH)
 x_base = pd.read_csv(BASE_ROW_PATH, index_col=0)
@@ -194,23 +128,14 @@ def show_image(path: str, caption: str) -> None:
 
 def make_line_chart(df: pd.DataFrame, title: str, y_col: str):
     fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=df.index,
-            y=df[y_col],
-            mode="lines",
-            name=y_col,
-        )
-    )
+    fig.add_trace(go.Scatter(x=df.index, y=df[y_col], mode="lines", name=y_col, line=dict(width=2.5)))
     fig.update_layout(
-        title=title,
-        template="plotly_dark",
-        height=340,
+        title=title, template="plotly_white", height=340,
         margin=dict(l=20, r=20, t=45, b=20),
-        xaxis_title="Date",
-        yaxis_title="Value",
-        showlegend=False
+        xaxis_title="Date", yaxis_title="Value", showlegend=False
     )
+    fig.update_xaxes(showgrid=True, gridcolor="rgba(148,163,184,0.25)")
+    fig.update_yaxes(showgrid=True, gridcolor="rgba(148,163,184,0.25)")
     return fig
 
 def format_return(val: float) -> str:
@@ -219,33 +144,31 @@ def format_return(val: float) -> str:
 def delta_color_name(val: float) -> str:
     if val > 0:
         return "normal"
-    elif val < 0:
+    if val < 0:
         return "inverse"
     return "off"
 
 def interpret_return(val: float) -> str:
     if val >= 0.02:
         return "strongly positive"
-    elif val >= 0.005:
+    if val >= 0.005:
         return "moderately positive"
-    elif val > -0.005:
+    if val > -0.005:
         return "broadly neutral"
-    elif val > -0.02:
+    if val > -0.02:
         return "moderately negative"
-    else:
-        return "strongly negative"
+    return "strongly negative"
 
 def change_message(delta: float) -> str:
     if delta > 0.005:
         return "The scenario improves the forecast noticeably relative to the baseline."
-    elif delta > 0.0:
+    if delta > 0.0:
         return "The scenario slightly improves the forecast relative to the baseline."
-    elif delta == 0.0:
+    if delta == 0.0:
         return "The scenario does not materially change the forecast."
-    elif delta > -0.005:
+    if delta > -0.005:
         return "The scenario slightly weakens the forecast relative to the baseline."
-    else:
-        return "The scenario weakens the forecast noticeably relative to the baseline."
+    return "The scenario weakens the forecast noticeably relative to the baseline."
 
 @st.cache_data(ttl=60 * 60)
 def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
@@ -265,10 +188,7 @@ def fetch_ftse_prices_and_returns(start="2020-01-01") -> pd.DataFrame:
     close = close_series.resample("ME").last()
     ret = close.pct_change()
 
-    out = pd.DataFrame({
-        "ftse_close": close,
-        "ftse_return": ret
-    }).dropna()
+    out = pd.DataFrame({"ftse_close": close, "ftse_return": ret}).dropna()
 
     if out.empty:
         raise RuntimeError("FTSE resampling returned no usable monthly data.")
@@ -285,11 +205,7 @@ refresh = st.sidebar.button("Refresh Live Market Data")
 if refresh:
     st.cache_data.clear()
 
-# -----------------------------
-# Stable live market fetch only
-# -----------------------------
 ftse_live_df = None
-live_status = None
 latest_market_month = None
 
 try:
@@ -299,7 +215,6 @@ try:
     live_status = f"Live FTSE data OK. Latest market month: {latest_market_month.date()}"
 except Exception as e:
     latest_ftse_return = float(x_base.iloc[0].get("ftse_return", 0))
-    latest_market_month = None
     live_status = f"Live FTSE fetch failed; using saved market baseline. Reason: {type(e).__name__}: {e}"
 
 if "failed" in live_status.lower():
@@ -362,24 +277,11 @@ with tabs[0]:
     with k1:
         st.metric("Baseline predicted return", format_return(base_pred))
     with k2:
-        st.metric(
-            "Scenario predicted return",
-            format_return(scn_pred),
-            delta=format_return(scn_pred - base_pred),
-            delta_color=delta_color_name(scn_pred - base_pred)
-        )
+        st.metric("Scenario predicted return", format_return(scn_pred), delta=format_return(change), delta_color=delta_color_name(change))
     with k3:
-        st.metric(
-            "Prediction change",
-            format_return(change),
-            delta=format_return(change),
-            delta_color=delta_color_name(change)
-        )
+        st.metric("Prediction change", format_return(change), delta=format_return(change), delta_color=delta_color_name(change))
     with k4:
-        st.metric(
-            "Latest market month",
-            str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline"
-        )
+        st.metric("Latest market month", str(latest_market_month.date()) if latest_market_month is not None else "Saved baseline")
     st.markdown('</div>', unsafe_allow_html=True)
 
     baseline_text = interpret_return(base_pred)
@@ -471,7 +373,6 @@ with tabs[0]:
             trend_msg = "The FTSE 100 has shown a negative short-term trend over the last three monthly observations."
         else:
             trend_msg = "The FTSE 100 has been relatively mixed or stable over the last three monthly observations."
-
         st.write(trend_msg)
         st.write(f"Average monthly return over the last 3 observations: **{avg_3:.4%}**.")
     else:
@@ -488,11 +389,7 @@ with tabs[0]:
     with ch1:
         if ftse_live_df is not None:
             st.plotly_chart(
-                make_line_chart(
-                    ftse_live_df.tail(24),
-                    "FTSE 100 Monthly Returns (last 24 months)",
-                    "ftse_return"
-                ),
+                make_line_chart(ftse_live_df.tail(24), "FTSE 100 Monthly Returns (last 24 months)", "ftse_return"),
                 use_container_width=True
             )
         else:
@@ -523,12 +420,7 @@ with tabs[1]:
     st.subheader("Model evidence and dissertation plots")
 
     perf_df = pd.DataFrame({
-        "Model": [
-            "Ridge (tuned, TSCV)",
-            "Ridge Regression",
-            "Gradient Boosting",
-            "Baseline (return_t)"
-        ],
+        "Model": ["Ridge (tuned, TSCV)", "Ridge Regression", "Gradient Boosting", "Baseline (return_t)"],
         "MAE": [0.028996, 0.029812, 0.039645, 0.041435],
         "RMSE": [0.037194, 0.037969, 0.050094, 0.052102],
         "R²": [-0.035601, -0.079228, -0.878534, -1.032138]
@@ -543,20 +435,11 @@ with tabs[1]:
     colA, colB = st.columns(2)
 
     with colA:
-        show_image(
-            "figures/actual_vs_predicted_tuned_ridge.png",
-            "Actual vs Predicted (Tuned Ridge, test period)"
-        )
-        show_image(
-            "figures/residuals_tuned_ridge.png",
-            "Residuals over time (Tuned Ridge)"
-        )
+        show_image("figures/actual_vs_predicted_tuned_ridge.png", "Actual vs Predicted (Tuned Ridge, test period)")
+        show_image("figures/residuals_tuned_ridge.png", "Residuals over time (Tuned Ridge)")
 
     with colB:
-        show_image(
-            "figures/scenario_impacts.png",
-            "Scenario impacts (macro shocks)"
-        )
+        show_image("figures/scenario_impacts.png", "Scenario impacts (macro shocks)")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================
@@ -597,5 +480,3 @@ with tabs[2]:
         """
     )
     st.markdown('</div>', unsafe_allow_html=True)
-
-# ===== END: app.py =====
